@@ -434,6 +434,50 @@ function drawVideo(g) {
   ctx.restore();
 }
 
+// ---------- 손바닥 문구 (손가락을 모두 펴면 나타남) ----------
+const palmAlpha = new Map();
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function isOpen(pt) {
+  const w = pt[0];
+  // 검지~새끼: 손끝이 둘째 마디보다 손목에서 충분히 멀면 펴진 것
+  for (const [tip, pip] of [[8, 6], [12, 10], [16, 14], [20, 18]]) {
+    if (dist(w, pt[tip]) < dist(w, pt[pip]) * 1.18) return false;
+  }
+  // 엄지: 손끝이 새끼 쪽 손바닥과 검지 뿌리에서 떨어져 있어야 함
+  const palm = dist(pt[5], pt[17]);
+  if (dist(pt[4], pt[17]) < dist(pt[3], pt[17]) * 1.05) return false;
+  if (dist(pt[4], pt[5]) < palm * 0.55) return false;
+  return true;
+}
+function drawPalmText(pt, alpha) {
+  const cx = (pt[0].x + pt[5].x + pt[9].x + pt[13].x + pt[17].x) / 5;
+  const cy = (pt[0].y + pt[5].y + pt[9].y + pt[13].y + pt[17].y) / 5;
+  const palmW = dist(pt[5], pt[17]);
+  // 손목 → 가운데손가락 뿌리 방향을 위로 두고 회전
+  const ang = Math.atan2(pt[9].y - pt[0].y, pt[9].x - pt[0].x) + Math.PI / 2;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  ctx.rotate(ang);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+  ctx.font = '800 100px "Pretendard", -apple-system, sans-serif';
+  const big = Math.max(10, 100 * (palmW * 1.05) / ctx.measureText("IN KOREA").width);
+  const small = big / 5;
+  const lh = big * 0.96;
+  const top = -(lh * 2 + small * 1.4) / 2;
+  ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = big * 0.12; ctx.shadowOffsetY = big * 0.03;
+  ctx.fillStyle = "#ebe7dc";
+  ctx.font = `800 ${big}px "Pretendard", -apple-system, sans-serif`;
+  ctx.fillText("30 YEARS", 0, top + big * 0.82);
+  ctx.fillText("IN KOREA", 0, top + lh + big * 0.82);
+  ctx.font = `500 ${small}px "Pretendard", -apple-system, sans-serif`;
+  if ("letterSpacing" in ctx) ctx.letterSpacing = `${small * 0.08}px`;
+  ctx.fillText("with GF Fashion", 0, top + lh * 2 + small * 1.25);
+  ctx.restore();
+}
+
 // 사진·영상에 들어가는 작은 로고 (화면 위 UI는 저장본에 안 들어가므로 캔버스에 직접 그림)
 function drawWatermark() {
   const pad = 18, y = H - pad;
@@ -472,6 +516,11 @@ function loop() {
     results.forEach((hand, h) => {
       const wrist = toScreen(hand[0], g), mid = toScreen(hand[9], g);
       const r = Math.max(11, Math.min(40, Math.hypot(mid.x - wrist.x, mid.y - wrist.y) * 0.19));
+      const pts = hand.map(q => toScreen(q, g));
+      const a0 = palmAlpha.get(h) || 0;
+      const a = a0 + ((isOpen(pts) ? 1 : 0) - a0) * 0.18; // 부드럽게 나타나고 사라짐
+      palmAlpha.set(h, a);
+      if (a > 0.02) drawPalmText(pts, a);
       TIPS.forEach((idx, f) => {
         const p = toScreen(hand[idx], g);
         const key = h + "-" + f;
@@ -483,6 +532,7 @@ function loop() {
       });
     });
     for (const key of smooth.keys()) if (!seen.has(key)) smooth.delete(key);
+    for (const h of palmAlpha.keys()) if (h >= results.length) palmAlpha.delete(h);
     if (shooting) drawWatermark();
   }
   requestAnimationFrame(loop);
