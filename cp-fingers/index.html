@@ -3,59 +3,145 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>CPCOMPANY</title>
 <style>
   @font-face { font-family: "Pretendard"; src: url("lib/PretendardVariable.woff2") format("woff2-variations"), url("lib/PretendardVariable.woff2") format("woff2"); font-weight: 45 920; font-display: swap; }
   :root {
     --bg: #0d0f10;
     --fg: #f4f5f2;
-    --muted: #9aa09b;
+    --muted: #a3a8a4;
     --chip: #ffffff;
     --ink: #111312;
+    --rec: #e5483b;
+    --glass: rgba(13, 15, 16, .45);
     --font: "Pretendard", -apple-system, "Apple SD Gothic Neo", sans-serif;
+    --top: env(safe-area-inset-top, 0px);
+    --bottom: env(safe-area-inset-bottom, 0px);
   }
-  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); overflow: hidden; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); overflow: hidden; -webkit-user-select: none; user-select: none; }
   #stage { position: fixed; inset: 0; }
-  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-  canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #intro {
-    position: fixed; inset: 0; display: grid; place-items: center; text-align: center;
-    background: var(--bg); padding: 24px; z-index: 5;
+  /* 비디오는 화면에 직접 보이지 않고 캔버스에 그려서 보여줌 (사진·영상에 같이 담기도록) */
+  video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; pointer-events: none; }
+  #canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .logo { display: inline-flex; align-items: center; height: 22px; }
+  .logo img { height: 100%; width: auto; display: block; }
+  .wordmark { font-weight: 800; font-size: 17px; letter-spacing: .14em; white-space: nowrap; }
+
+  #topbar {
+    position: fixed; left: 0; right: 0; top: 0; z-index: 3;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: calc(14px + var(--top)) max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px));
+    background: linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,0));
   }
-  #intro h1 { font-size: clamp(36px, 9vw, 72px); font-weight: 900; margin: 0 0 8px; letter-spacing: -0.02em; }
-  #intro p { color: var(--muted); margin: 0 0 28px; font-size: 15px; line-height: 1.6; }
-  .dots { display: flex; gap: 10px; justify-content: center; margin-bottom: 28px; }
-  .dots span {
-    width: 52px; height: 52px; border-radius: 50%; background: var(--chip); color: var(--ink);
-    display: grid; place-items: center; font-weight: 900; font-size: 22px;
+  #controls {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 3;
+    display: grid; justify-items: center; gap: 14px;
+    padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(16px + var(--bottom)) max(16px, env(safe-area-inset-left, 0px));
+    background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.55));
   }
+  .modes { display: flex; gap: 4px; background: var(--glass); border-radius: 999px; padding: 4px; }
+  .modes button { background: transparent; color: var(--fg); padding: 7px 16px; font-size: 14px; }
+  .modes button[aria-pressed="true"] { background: var(--fg); color: var(--ink); }
+  .row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; max-width: 420px; }
+  #shutter {
+    width: 74px; height: 74px; border-radius: 50%; padding: 0;
+    background: transparent; border: 4px solid var(--fg); display: grid; place-items: center;
+  }
+  #shutter::after { content: ""; width: 58px; height: 58px; border-radius: 50%; background: var(--fg); transition: all .18s ease; }
+  #shutter.video::after { background: var(--rec); }
+  #shutter.recording::after { width: 28px; height: 28px; border-radius: 6px; background: var(--rec); }
+  #recTime { justify-self: start; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 15px; color: var(--fg); }
+  #recTime::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rec); margin-right: 6px; vertical-align: 1px; }
+  .note { font-size: 10.5px; line-height: 1.5; color: rgba(244,245,242,.72); text-align: center; max-width: 420px; text-wrap: balance; word-break: keep-all; }
+
   button {
-    font: inherit; font-weight: 700; font-size: 17px; border: 0; border-radius: 999px;
-    padding: 14px 32px; background: var(--fg); color: var(--ink); cursor: pointer;
+    font: inherit; font-weight: 700; font-size: 16px; border: 0; border-radius: 999px;
+    padding: 13px 28px; background: var(--fg); color: var(--ink); cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
   button:focus-visible { outline: 3px solid var(--muted); outline-offset: 3px; }
   button:disabled { opacity: .5; cursor: wait; }
-  #msg { margin-top: 18px; color: var(--muted); font-size: 14px; min-height: 1.4em; }
-  #flip {
-    position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    z-index: 4; padding: 10px 18px; font-size: 14px; background: rgba(255,255,255,.85);
+  .ghost { background: var(--glass); color: var(--fg); padding: 9px 16px; font-size: 14px; font-weight: 600; }
+
+  #intro {
+    position: fixed; inset: 0; z-index: 5; background: var(--bg);
+    display: grid; grid-template-rows: auto 1fr auto; text-align: center;
+    padding: calc(24px + var(--top)) max(20px, env(safe-area-inset-right, 0px)) calc(20px + var(--bottom)) max(20px, env(safe-area-inset-left, 0px));
   }
+  #intro .center { display: grid; place-content: center; justify-items: center; gap: 0; }
+  .dots { display: flex; gap: 10px; justify-content: center; margin-bottom: 28px; }
+  .dots span {
+    width: 52px; height: 52px; border-radius: 50%; background: var(--chip); color: var(--ink);
+    display: grid; place-items: center; font-weight: 800; font-size: 22px;
+  }
+  #intro h1 { font-size: clamp(30px, 8vw, 56px); font-weight: 800; margin: 0 0 10px; letter-spacing: -0.01em; }
+  #intro p { color: var(--muted); margin: 0 0 28px; font-size: 15px; line-height: 1.6; }
+  #msg { margin-top: 16px; color: var(--muted); font-size: 14px; min-height: 1.4em; }
+  #intro .note { justify-self: center; color: var(--muted); }
+
+  #review {
+    position: fixed; inset: 0; z-index: 6; background: var(--bg);
+    display: grid; grid-template-rows: 1fr auto; gap: 16px;
+    padding: calc(16px + var(--top)) max(16px, env(safe-area-inset-right, 0px)) calc(16px + var(--bottom)) max(16px, env(safe-area-inset-left, 0px));
+  }
+  #preview { min-height: 0; display: grid; place-items: center; }
+  #preview img, #preview video { max-width: 100%; max-height: 100%; border-radius: 14px; display: block; }
+  .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .actions .ghost { padding: 13px 24px; font-size: 16px; }
+  #saveHint { text-align: center; font-size: 12.5px; color: var(--muted); margin: 0; min-height: 1.2em; }
+  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 4; transition: opacity .25s ease; }
+  @media (prefers-reduced-motion: reduce) { #shutter::after, #flash { transition: none; } }
 </style>
 </head>
 <body>
 <div id="stage">
-  <video id="video" playsinline muted></video>
+  <video id="video" playsinline muted autoplay></video>
   <canvas id="canvas"></canvas>
 </div>
-<button id="flip" hidden>카메라 전환</button>
+<div id="flash"></div>
+
+<div id="topbar" hidden>
+  <span class="logo" data-logo><span class="wordmark">C.P. COMPANY</span></span>
+  <button id="flip" class="ghost" type="button">카메라 전환</button>
+</div>
+
+<div id="controls" hidden>
+  <div class="modes" role="group" aria-label="촬영 모드">
+    <button type="button" id="modePhoto" aria-pressed="true">사진</button>
+    <button type="button" id="modeVideo" aria-pressed="false">영상</button>
+  </div>
+  <div class="row">
+    <span id="recTime" hidden>0:00</span>
+    <button id="shutter" type="button" aria-label="사진 찍기" style="grid-column: 2"></button>
+    <span></span>
+  </div>
+  <div class="note">C.P. Company는 한국 진출 30주년을 맞아 오랜 파트너인 G.F. Fashion과 함께 특별 전시 "996-026. Memories of Italian Sportswear in South Korea"를 개최합니다.</div>
+</div>
 
 <div id="intro">
-  <div>
+  <div><span class="logo" data-logo><span class="wordmark">C.P. COMPANY</span></span></div>
+  <div class="center">
     <div class="dots"><span>C</span><span>P</span><span>컴</span><span>퍼</span><span>니</span></div>
-    <h1>CP컴퍼니</h1>
-    <p>카메라에 손바닥을 펴서 보여주세요.<br>엄지부터 새끼손가락까지 한 글자씩 따라다닙니다.</p>
-    <button id="start">카메라 켜기</button>
+    <h1>손끝의 CP컴퍼니</h1>
+    <p>손바닥을 펴서 카메라에 보여주세요.<br>엄지부터 새끼손가락까지 한 글자씩 따라다닙니다.<br>사진과 영상으로 남겨보세요.</p>
+    <button id="start" type="button">카메라 켜기</button>
     <div id="msg"></div>
+  </div>
+  <div class="note">C.P. Company는 한국 진출 30주년을 맞아 오랜 파트너인 G.F. Fashion과 함께 특별 전시 "996-026. Memories of Italian Sportswear in South Korea"를 개최합니다.</div>
+</div>
+
+<div id="review" hidden>
+  <div id="preview"></div>
+  <div>
+    <div class="actions">
+      <button id="save" type="button">저장하기</button>
+      <button id="retake" class="ghost" type="button">다시 찍기</button>
+    </div>
+    <p id="saveHint"></p>
   </div>
 </div>
 
@@ -64,25 +150,35 @@ import { FilesetResolver, HandLandmarker } from "./lib/vision_bundle.mjs";
 
 const LETTERS = ["C", "P", "컴", "퍼", "니"];   // 엄지 → 새끼
 const TIPS = [4, 8, 12, 16, 20];              // MediaPipe 손끝 랜드마크
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const startBtn = document.getElementById("start");
-const flipBtn = document.getElementById("flip");
-const msg = document.getElementById("msg");
+const $ = (id) => document.getElementById(id);
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
+const startBtn = $("start"), msg = $("msg"), shutter = $("shutter"), recTime = $("recTime");
 
-let landmarker = null;
-let stream = null;
-let facing = "user";
-let lastVideoTime = -1;
-let results = [];
-const smooth = new Map(); // "hand-finger" -> {x, y, r}
+let landmarker = null, stream = null, facing = "user";
+let lastVideoTime = -1, results = [];
+let mode = "photo", recorder = null, recChunks = [], recStart = 0, recTimer = null;
+let captured = null; // { blob, type: "photo"|"video", name }
+const smooth = new Map();
+let W = 0, H = 0, DPR = 1;
+
+// 로고: cp-fingers/logo.png 또는 logo.svg 파일이 있으면 글자 대신 이미지 사용
+let logoImg = null;
+for (const src of ["logo.svg", "logo.png"]) {
+  const img = new Image();
+  img.onload = () => {
+    if (logoImg) return;
+    logoImg = img;
+    document.querySelectorAll("[data-logo]").forEach(el => { el.innerHTML = ""; el.appendChild(img.cloneNode()); });
+  };
+  img.src = src;
+}
 
 function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = innerWidth * dpr;
-  canvas.height = innerHeight * dpr;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 addEventListener("resize", resize);
 resize();
@@ -93,16 +189,12 @@ function withTimeout(promise, ms) {
 
 async function loadModel() {
   const files = await FilesetResolver.forVisionTasks(new URL("./lib/wasm", location.href).href);
-  const opts = (delegate) => ({
-    baseOptions: {
-      modelAssetPath: new URL("./lib/hand_landmarker.task", location.href).href,
-      delegate,
-    },
+  // 사파리는 GPU 모드에서 멈추는 경우가 있어 CPU로 실행
+  return await withTimeout(HandLandmarker.createFromOptions(files, {
+    baseOptions: { modelAssetPath: new URL("./lib/hand_landmarker.task", location.href).href, delegate: "CPU" },
     runningMode: "VIDEO",
     numHands: 2,
-  });
-  // 사파리는 GPU 모드에서 멈추는 경우가 있어 CPU로 실행
-  return await withTimeout(HandLandmarker.createFromOptions(files, opts("CPU")), 60000);
+  }), 60000);
 }
 
 async function openCamera() {
@@ -112,7 +204,6 @@ async function openCamera() {
     audio: false,
   });
   video.srcObject = stream;
-  video.style.transform = facing === "user" ? "scaleX(-1)" : "none";
   await video.play();
 }
 
@@ -123,33 +214,44 @@ startBtn.addEventListener("click", async () => {
     await openCamera();
     msg.textContent = "손 인식 모델을 불러오는 중…";
     landmarker = await loadModel();
-    await document.fonts.load('900 40px "Pretendard"').catch(() => {});
-    document.getElementById("intro").hidden = true;
-    flipBtn.hidden = false;
+    await document.fonts.load('800 40px "Pretendard"').catch(() => {});
+    $("intro").hidden = true;
+    $("topbar").hidden = false;
+    $("controls").hidden = false;
     requestAnimationFrame(loop);
   } catch (e) {
     console.error(e);
     startBtn.disabled = false;
     msg.textContent = e && e.name === "NotAllowedError"
-      ? "카메라 권한이 거부됐어요. 주소창의 카메라 아이콘에서 허용해 주세요."
-      : "시작하지 못했어요. 인터넷 연결과 카메라를 확인해 주세요.";
+      ? "카메라 권한이 거부됐어요. 설정 > Safari > 카메라에서 허용해 주세요."
+      : "시작하지 못했어요. 인터넷 연결과 카메라를 확인하고 다시 눌러주세요.";
   }
 });
 
-flipBtn.addEventListener("click", async () => {
+$("flip").addEventListener("click", async () => {
+  if (recorder) return;
   facing = facing === "user" ? "environment" : "user";
   smooth.clear();
   try { await openCamera(); } catch { facing = "user"; await openCamera(); }
 });
 
-// 화면 좌표로 변환 (object-fit: cover + 전면 카메라 좌우반전 반영)
-function toScreen(p) {
+// 영상 좌표 → 화면 좌표 (object-fit: cover, 전면 카메라는 좌우반전)
+function geometry() {
   const vw = video.videoWidth, vh = video.videoHeight;
-  const scale = Math.max(innerWidth / vw, innerHeight / vh);
+  const scale = Math.max(W / vw, H / vh);
   const dw = vw * scale, dh = vh * scale;
-  const ox = (innerWidth - dw) / 2, oy = (innerHeight - dh) / 2;
+  return { dw, dh, ox: (W - dw) / 2, oy: (H - dh) / 2 };
+}
+function toScreen(p, g) {
   const nx = facing === "user" ? 1 - p.x : p.x;
-  return { x: ox + nx * dw, y: oy + p.y * dh, scale: dw };
+  return { x: g.ox + nx * g.dw, y: g.oy + p.y * g.dh };
+}
+
+function drawVideo(g) {
+  ctx.save();
+  if (facing === "user") { ctx.translate(W, 0); ctx.scale(-1, 1); }
+  ctx.drawImage(video, g.ox, g.oy, g.dw, g.dh);
+  ctx.restore();
 }
 
 function drawChip(x, y, r, letter) {
@@ -169,33 +271,189 @@ function drawChip(x, y, r, letter) {
   ctx.fillText(letter, x, y + r * 0.04);
 }
 
-function loop() {
-  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
-    lastVideoTime = video.currentTime;
-    const res = landmarker.detectForVideo(video, performance.now());
-    results = res.landmarks || [];
+// 사진·영상에 들어가는 작은 로고 (화면 위 UI는 저장본에 안 들어가므로 캔버스에 직접 그림)
+function drawWatermark() {
+  const pad = 16;
+  const y = H - pad - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--wm-bottom")) || 0);
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  if (logoImg && logoImg.naturalWidth) {
+    const h = 16, w = logoImg.naturalWidth * (h / logoImg.naturalHeight);
+    ctx.drawImage(logoImg, pad, y - h, w, h);
+  } else {
+    ctx.fillStyle = "#ffffff";
+    ctx.font = '800 12px "Pretendard", -apple-system, sans-serif';
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    if ("letterSpacing" in ctx) ctx.letterSpacing = "2px";
+    ctx.shadowColor = "rgba(0,0,0,.4)"; ctx.shadowBlur = 4;
+    ctx.fillText("C.P. COMPANY · 30 YEARS IN KOREA", pad, y);
   }
-  ctx.clearRect(0, 0, innerWidth, innerHeight);
-  const seen = new Set();
-  results.forEach((hand, h) => {
-    const wrist = toScreen(hand[0]);
-    const mid = toScreen(hand[9]);
-    const handSize = Math.hypot(mid.x - wrist.x, mid.y - wrist.y);
-    const r = Math.max(16, Math.min(60, handSize * 0.28));
-    TIPS.forEach((idx, f) => {
-      const p = toScreen(hand[idx]);
-      const key = h + "-" + f;
-      seen.add(key);
-      const s = smooth.get(key);
-      const k = 0.55;
-      const cur = s ? { x: s.x + (p.x - s.x) * k, y: s.y + (p.y - s.y) * k, r: s.r + (r - s.r) * 0.3 } : { x: p.x, y: p.y, r };
-      smooth.set(key, cur);
-      drawChip(cur.x, cur.y, cur.r, LETTERS[f]);
+  ctx.restore();
+}
+
+function loop() {
+  if (video.readyState >= 2 && video.videoWidth) {
+    if (video.currentTime !== lastVideoTime) {
+      lastVideoTime = video.currentTime;
+      const res = landmarker.detectForVideo(video, performance.now());
+      results = res.landmarks || [];
+    }
+    const g = geometry();
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
+    drawVideo(g);
+    const seen = new Set();
+    results.forEach((hand, h) => {
+      const wrist = toScreen(hand[0], g), mid = toScreen(hand[9], g);
+      const r = Math.max(16, Math.min(60, Math.hypot(mid.x - wrist.x, mid.y - wrist.y) * 0.28));
+      TIPS.forEach((idx, f) => {
+        const p = toScreen(hand[idx], g);
+        const key = h + "-" + f;
+        seen.add(key);
+        const s = smooth.get(key);
+        const cur = s ? { x: s.x + (p.x - s.x) * 0.55, y: s.y + (p.y - s.y) * 0.55, r: s.r + (r - s.r) * 0.3 } : { x: p.x, y: p.y, r };
+        smooth.set(key, cur);
+        drawChip(cur.x, cur.y, cur.r, LETTERS[f]);
+      });
     });
-  });
-  for (const key of smooth.keys()) if (!seen.has(key)) smooth.delete(key);
+    for (const key of smooth.keys()) if (!seen.has(key)) smooth.delete(key);
+    if (shooting) drawWatermark();
+  }
   requestAnimationFrame(loop);
 }
+
+// ---------- 촬영 ----------
+let shooting = false; // 저장되는 프레임에만 워터마크
+function setMode(m) {
+  if (recorder) return;
+  mode = m;
+  $("modePhoto").setAttribute("aria-pressed", m === "photo");
+  $("modeVideo").setAttribute("aria-pressed", m === "video");
+  shutter.classList.toggle("video", m === "video");
+  shutter.setAttribute("aria-label", m === "photo" ? "사진 찍기" : "영상 녹화 시작");
+}
+$("modePhoto").addEventListener("click", () => setMode("photo"));
+$("modeVideo").addEventListener("click", () => setMode("video"));
+
+const stamp = () => {
+  const d = new Date(), z = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+};
+
+shutter.addEventListener("click", () => {
+  if (mode === "photo") takePhoto();
+  else if (recorder) stopRecording();
+  else startRecording();
+});
+
+function takePhoto() {
+  shooting = true;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    canvas.toBlob((blob) => {
+      shooting = false;
+      if (!blob) return;
+      flash();
+      showReview({ blob, type: "photo", name: `CPCOMPANY-${stamp()}.jpg` });
+    }, "image/jpeg", 0.92);
+  }));
+}
+
+function flash() {
+  const f = $("flash");
+  f.style.opacity = "0.8";
+  setTimeout(() => (f.style.opacity = "0"), 80);
+}
+
+function pickMime() {
+  const list = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  return list.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+}
+
+function startRecording() {
+  if (!window.MediaRecorder || !canvas.captureStream) {
+    alert("이 브라우저에서는 영상 녹화를 지원하지 않아요.");
+    return;
+  }
+  const mime = pickMime();
+  const out = canvas.captureStream(30);
+  try {
+    recorder = new MediaRecorder(out, mime ? { mimeType: mime, videoBitsPerSecond: 6_000_000 } : undefined);
+  } catch {
+    recorder = new MediaRecorder(out);
+  }
+  recChunks = [];
+  recorder.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+  recorder.onstop = () => {
+    const type = recorder.mimeType || mime || "video/webm";
+    const blob = new Blob(recChunks, { type });
+    const ext = type.includes("mp4") ? "mp4" : "webm";
+    recorder = null; shooting = false;
+    clearInterval(recTimer);
+    recTime.hidden = true;
+    shutter.classList.remove("recording");
+    shutter.setAttribute("aria-label", "영상 녹화 시작");
+    out.getTracks().forEach(t => t.stop());
+    showReview({ blob, type: "video", name: `CPCOMPANY-${stamp()}.${ext}` });
+  };
+  shooting = true;
+  recorder.start(250);
+  recStart = Date.now();
+  recTime.textContent = "0:00";
+  recTime.hidden = false;
+  shutter.classList.add("recording");
+  shutter.setAttribute("aria-label", "녹화 멈추기");
+  recTimer = setInterval(() => {
+    const s = Math.floor((Date.now() - recStart) / 1000);
+    recTime.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    if (s >= 60) stopRecording(); // 최대 1분
+  }, 250);
+}
+
+function stopRecording() {
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+}
+
+function showReview(item) {
+  captured = item;
+  const url = URL.createObjectURL(item.blob);
+  const el = item.type === "photo" ? new Image() : document.createElement("video");
+  el.src = url;
+  if (item.type === "video") { el.controls = true; el.playsInline = true; el.loop = true; el.muted = true; el.autoplay = true; }
+  $("preview").replaceChildren(el);
+  $("saveHint").textContent = "";
+  $("review").hidden = false;
+}
+
+$("retake").addEventListener("click", () => {
+  const el = $("preview").firstChild;
+  if (el && el.src) URL.revokeObjectURL(el.src);
+  $("preview").replaceChildren();
+  captured = null;
+  $("review").hidden = true;
+});
+
+$("save").addEventListener("click", async () => {
+  if (!captured) return;
+  const file = new File([captured.blob], captured.name, { type: captured.blob.type });
+  // 아이폰: 공유 시트에서 "이미지 저장"/"비디오 저장"으로 사진 앱에 저장
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] });
+      $("saveHint").textContent = "공유 메뉴에서 '이미지 저장' 또는 '비디오 저장'을 누르면 사진 앱에 저장돼요.";
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+    }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file);
+  a.download = captured.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  $("saveHint").textContent = "다운로드 폴더에 저장했어요.";
+});
 </script>
 </body>
 </html>
